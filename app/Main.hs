@@ -101,8 +101,12 @@ webPageOf gitUrl path = do
       let basePath = case stripSuffix ".git" gitFile of
             Just s -> s
             Nothing -> error "Basepath"
-
       "https://github.com/" <> basePath <> "/blob/master/" <> path
+    "git@git.groq.io" -> do
+      let basePath = case stripSuffix ".git" gitFile of
+            Just s -> s
+            Nothing -> error "Basepath"
+      "https://git.groq.io/" <> basePath <> "/-/blob/head/" <> path
     other -> error ("Unknown: " <> other)
 
 stripSuffix :: (Eq a) => [a] -> [a] -> Maybe [a]
@@ -124,4 +128,8 @@ test = do
         webPageOf "git@github.com:tomjaguarpaw/ad.git" "Term/app/Main.hs"
           == "https://github.com/tomjaguarpaw/ad/blob/master/Term/app/Main.hs"
 
-  b1 && b2
+  let b3 =
+        webPageOf "git@git.groq.io:code/Groq.git" "Term/app/Main.hs"
+          == "https://git.groq.io/code/Groq/-/blob/head/Term/app/Main.hs"
+
+  b1 && b2 && b3
