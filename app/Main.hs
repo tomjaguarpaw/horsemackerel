@@ -155,12 +155,16 @@ test = do
           [ "origin  git@github.com:tomjaguarpaw/ad.git (fetch)",
             "origin  git@github.com:tomjaguarpaw/ad.git (push)",
             "remotename    ssh://git@github.com/tomjaguarpaw/effectful.git (fetch)",
-            "remotename    ssh://git@github.com/tomjaguarpaw/effectful.git (push)"
+            "remotename    ssh://git@github.com/tomjaguarpaw/effectful.git (push)",
+            "yetanother  https://github.com/junjihashimoto/sixel.git (fetch)",
+            "yetanother  https://github.com/junjihashimoto/sixel.git (push)"
+
           ]
 
   let expected =
         [ "git@github.com:tomjaguarpaw/ad.git",
-          "ssh://git@github.com/tomjaguarpaw/effectful.git"
+          "ssh://git@github.com/tomjaguarpaw/effectful.git",
+          "https://github.com/junjihashimoto/sixel.git"
         ]
 
   let b1 = parseRemotes remoteOutput == expected
