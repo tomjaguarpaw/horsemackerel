@@ -77,11 +77,23 @@ work io ystdout yfile = do
           hash <- case stripSuffix "\n" hashNLString of
             Nothing -> do
               yield ystdout (show hashNLString)
-              error ("couldn't strip .git from " <> gitDirDotGitString)
+              error ("couldn't strip newline from " <> hashNLString)
+            Just g -> pure g
+
+          (_, branchNL, _) <-
+            execGit io base ["rev-parse", "--abbrev-ref", "HEAD"]
+
+          let branchNLString = BS.unpack (BL.toStrict branchNL)
+
+          branch <- case stripSuffix "\n" branchNLString of
+            Nothing -> do
+              yield ystdout (show branchNLString)
+              error ("couldn't strip newline from " <> branchNLString)
             Just g -> pure g
 
           for_ remotes $ \remote -> do
             yield ystdout $ webPageOf remote gitdir_ hash line
+            yield ystdout $ webPageOf remote gitdir_ branch line
 
   yield ystdout "Done"
 
