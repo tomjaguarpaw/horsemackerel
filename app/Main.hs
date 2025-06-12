@@ -84,7 +84,7 @@ work io ystdout yfile = do
             Just g -> pure g
 
           for_ remotes $ \remote -> do
-            yield yfile $ webPageOf remote gitdir_ hash line
+            yield ystdout $ webPageOf remote gitdir_ hash line
 
   yield ystdout "Done"
 
