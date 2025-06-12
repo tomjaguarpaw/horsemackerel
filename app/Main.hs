@@ -48,15 +48,13 @@ work io ystdout yfile = do
         Just (s, line) -> do
           yield yfile s
           let base = takeDirectory s
-          (_exitCode, stdout, _stderr) <-
-            effIO io $ readProcess (proc "git" ["-C", base, "remote", "-v"])
+          (_exitCode, stdout, _stderr) <- execGit io base ["remote", "-v"]
           let remotesOutput = BS.unpack (BL.toStrict stdout)
           yield yfile $ "Remotes:\n" ++ remotesOutput
 
           let remotes = parseRemotes remotesOutput
 
-          (_, gitdirDotGit, _) <-
-            effIO io $ readProcess (proc "git" ["-C", base, "rev-parse", "--git-dir"])
+          (_, gitdirDotGit, _) <- execGit io base ["rev-parse", "--git-dir"]
 
           let gitDirDotGitString = BS.unpack (BL.toStrict gitdirDotGit)
 
@@ -72,8 +70,7 @@ work io ystdout yfile = do
               error "couldn't strip gitdir"
             Just f -> pure f
 
-          (_, hashNL, _) <-
-            effIO io $ readProcess (proc "git" ["-C", base, "rev-parse", "HEAD"])
+          (_, hashNL, _) <- execGit io base ["rev-parse", "HEAD"]
 
           let hashNLString = BS.unpack (BL.toStrict hashNL)
 
@@ -87,6 +84,15 @@ work io ystdout yfile = do
             yield ystdout $ webPageOf remote gitdir_ hash line
 
   yield ystdout "Done"
+
+execGit ::
+  (e1 :> es) =>
+  IOE e1 ->
+  String ->
+  [String] ->
+  Eff es (ExitCode, BL.ByteString, BL.ByteString)
+execGit io base args =
+  effIO io $ readProcess (proc "git" (["-C", base] <> args))
 
 extractFilePath :: Value -> Parser String
 extractFilePath = withObject "root" $ \o ->
@@ -141,8 +147,9 @@ test = do
           ]
 
   let expected =
-        ["git@github.com:tomjaguarpaw/ad.git",
-          "ssh://git@github.com/tomjaguarpaw/effectful.git"]
+        [ "git@github.com:tomjaguarpaw/ad.git",
+          "ssh://git@github.com/tomjaguarpaw/effectful.git"
+        ]
 
   let b1 = parseRemotes remoteOutput == expected
 
