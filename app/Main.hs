@@ -9,6 +9,7 @@ import Data.Aeson
 import Data.Aeson.Types (Parser, parseMaybe)
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as BL
+import Data.Foldable (for_)
 import Data.List (nub, stripPrefix)
 import System.FilePath (takeDirectory)
 import System.IO (IOMode (WriteMode))
@@ -49,7 +50,30 @@ work io ystdout yfile = do
           let base = takeDirectory s
           (_exitCode, stdout, _stderr) <-
             effIO io $ readProcess (proc "git" ["-C", base, "remote", "-v"])
-          yield yfile $ "Remotes:\n" ++ BS.unpack (BL.toStrict stdout)
+          let remotesOutput = BS.unpack (BL.toStrict stdout)
+          yield yfile $ "Remotes:\n" ++ remotesOutput
+
+          let remotes = parseRemotes remotesOutput
+
+          (_, gitdirDotGit, _) <-
+            effIO io $ readProcess (proc "git" ["-C", base, "rev-parse", "--git-dir"])
+
+          let gitDirDotGitString = BS.unpack (BL.toStrict gitdirDotGit)
+
+          gitdir <- case stripSuffix ".git\n" gitDirDotGitString of
+            Nothing -> do
+              yield ystdout (show gitDirDotGitString)
+              error ("couldn't strip .git from " <> gitDirDotGitString)
+            Just g -> pure g
+
+          foo <- case stripPrefix gitdir s of
+            Nothing -> do
+              yield ystdout (show (gitdir, s))
+              error "couldn't strip gitdir"
+            Just f -> pure f
+
+          for_ remotes $ \remote -> do
+            yield yfile $ webPageOf remote foo
 
   yield ystdout "Done"
 
@@ -69,7 +93,7 @@ webPageOf :: String -> String -> String
 webPageOf gitUrl path = do
   let (host, gitFile) =
         case break (== ':') gitUrl of
-          (host', ':':gitFile') -> (host', gitFile')
+          (host', ':' : gitFile') -> (host', gitFile')
           (_, _) -> error "Bad break"
 
   case host of
