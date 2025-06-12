@@ -67,7 +67,11 @@ parseRemotes s = nub $ do
 
 webPageOf :: String -> String -> String
 webPageOf gitUrl path = do
-  let (host, ':':gitFile) = break (== ':') gitUrl
+  let (host, gitFile) =
+        case break (== ':') gitUrl of
+          (host', ':':gitFile') -> (host', gitFile')
+          (_, _) -> error "Bad break"
+
   case host of
     "git@github.com" -> do
       let basePath = case stripSuffix ".git" gitFile of
