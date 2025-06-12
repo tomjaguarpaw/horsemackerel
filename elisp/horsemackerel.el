@@ -6,7 +6,7 @@
 (defun generate-buffer-json ()
   (json-encode
    `((protocol . "horsemackerel0")
-     (payload . ((buffer_contentns . ,(buffer-string))
+     (payload . ((buffer_contents . ,(buffer-string))
 		 (line_number . ,(line-number-at-pos))
 		 (column_number . ,(current-column))
 		 (file_path . ,(buffer-file-name))

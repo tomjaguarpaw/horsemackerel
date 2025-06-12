@@ -43,9 +43,9 @@ work io ystdout yfile = do
     Just v -> do
       yield yfile (show v)
 
-      case parseMaybe extractFilePath v of
+      case parseMaybe extract v of
         Nothing -> yield yfile "Couldn't parse"
-        Just s -> do
+        Just (s, line) -> do
           yield yfile s
           let base = takeDirectory s
           (_exitCode, stdout, _stderr) <-
@@ -66,20 +66,38 @@ work io ystdout yfile = do
               error ("couldn't strip .git from " <> gitDirDotGitString)
             Just g -> pure g
 
-          foo <- case stripPrefix gitdir s of
+          gitdir_ <- case stripPrefix gitdir s of
             Nothing -> do
               yield ystdout (show (gitdir, s))
               error "couldn't strip gitdir"
             Just f -> pure f
 
+          (_, hashNL, _) <-
+            effIO io $ readProcess (proc "git" ["-C", base, "rev-parse", "HEAD"])
+
+          let hashNLString = BS.unpack (BL.toStrict hashNL)
+
+          hash <- case stripSuffix "\n" hashNLString of
+            Nothing -> do
+              yield ystdout (show hashNLString)
+              error ("couldn't strip .git from " <> gitDirDotGitString)
+            Just g -> pure g
+
           for_ remotes $ \remote -> do
-            yield yfile $ webPageOf remote foo
+            yield yfile $ webPageOf remote gitdir_ hash line
 
   yield ystdout "Done"
 
 extractFilePath :: Value -> Parser String
 extractFilePath = withObject "root" $ \o ->
   o .: "payload" >>= withObject "payload" (\p -> p .: "file_path")
+
+extractLine :: Value -> Parser Int
+extractLine = withObject "root" $ \o ->
+  o .: "payload" >>= withObject "payload" (\p -> p .: "line_number")
+
+extract :: Value -> Parser (String, Int)
+extract v = (,) <$> extractFilePath v <*> extractLine v
 
 parseRemotes :: String -> [String]
 -- FIXME: nub is O(n^2)
@@ -89,8 +107,8 @@ parseRemotes s = nub $ do
       [_remoteName, remoteUrl, _remoteType] -> remoteUrl
       other -> error (show other)
 
-webPageOf :: String -> String -> String
-webPageOf gitUrl path = do
+webPageOf :: String -> String -> String -> Int -> String
+webPageOf gitUrl path hash line = do
   let (host, gitFile) =
         case break (== ':') gitUrl of
           (host', ':' : gitFile') -> (host', gitFile')
@@ -101,12 +119,12 @@ webPageOf gitUrl path = do
       let basePath = case stripSuffix ".git" gitFile of
             Just s -> s
             Nothing -> error "Basepath"
-      "https://github.com/" <> basePath <> "/blob/master/" <> path
+      "https://github.com/" <> basePath <> "/blob/" <> hash <> "/" <> path <> "#L" <> show line
     "git@git.groq.io" -> do
       let basePath = case stripSuffix ".git" gitFile of
             Just s -> s
             Nothing -> error "Basepath"
-      "https://git.groq.io/" <> basePath <> "/-/blob/head/" <> path
+      "https://git.groq.io/" <> basePath <> "/-/blob/" <> hash <> "/" <> path <> "#L" <> show line
     other -> error ("Unknown: " <> other)
 
 stripSuffix :: (Eq a) => [a] -> [a] -> Maybe [a]
@@ -125,11 +143,11 @@ test = do
   let b1 = parseRemotes remoteOutput == expected
 
   let b2 =
-        webPageOf "git@github.com:tomjaguarpaw/ad.git" "Term/app/Main.hs"
-          == "https://github.com/tomjaguarpaw/ad/blob/master/Term/app/Main.hs"
+        webPageOf "git@github.com:tomjaguarpaw/ad.git" "Term/app/Main.hs" "abc" 12
+          == "https://github.com/tomjaguarpaw/ad/blob/abc/Term/app/Main.hs#L12"
 
   let b3 =
-        webPageOf "git@git.groq.io:code/Groq.git" "Term/app/Main.hs"
-          == "https://git.groq.io/code/Groq/-/blob/head/Term/app/Main.hs"
+        webPageOf "git@git.groq.io:code/Groq.git" "Term/app/Main.hs" "abc" 12
+          == "https://git.groq.io/code/Groq/-/blob/abc/Term/app/Main.hs#L12"
 
   b1 && b2 && b3
