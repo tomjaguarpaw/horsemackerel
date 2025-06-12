@@ -22,7 +22,7 @@
   (let* ((json (generate-buffer-json))
 	 (process-name (format "emacs-out-process-%d"
 			       (setq emacs-out-process-counter (1+ emacs-out-process-counter)))))
-    (start-process process-name nil "/tmp/horsemackerel")
+    (start-process process-name nil "/tmp/emacs-out.sh")
     (process-send-string process-name json)
     (process-send-eof process-name)))
 
