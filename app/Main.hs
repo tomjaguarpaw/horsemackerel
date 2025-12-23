@@ -50,7 +50,7 @@ work io ystdout yfile = do
           let base = takeDirectory s
           (_exitCode, stdout, _stderr) <- execGit io base ["remote", "-v"]
           let remotesOutput = BS.unpack (BL.toStrict stdout)
-          yield yfile $ "Remotes:\n" ++ remotesOutput
+          yield yfile $ "\nRemotes:\n" ++ remotesOutput
 
           let remotes = parseRemotes remotesOutput
 
