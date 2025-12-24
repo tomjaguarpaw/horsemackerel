@@ -9,7 +9,7 @@ import Data.Aeson
 import Data.Aeson.Types (Parser, parseMaybe)
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as BL
-import Data.Foldable (for_)
+import Data.Foldable (for_, traverse_)
 import Data.List (nub, stripPrefix)
 import System.FilePath (takeDirectory)
 import System.IO (IOMode (WriteMode))
@@ -92,8 +92,8 @@ work io ystdout yfile = do
             Just g -> pure g
 
           for_ remotes $ \remote -> do
-            yield ystdout $ webPageOf remote gitdir_ hash line
-            yield ystdout $ webPageOf remote gitdir_ branch line
+            traverse_ (yield ystdout) $ webPageOf remote gitdir_ hash line
+            traverse_ (yield ystdout) $ webPageOf remote gitdir_ branch line
 
   yield ystdout "Done"
 
@@ -125,14 +125,15 @@ parseRemotes s = nub $ do
       [_remoteName, remoteUrl, _remoteType] -> remoteUrl
       other -> error (show other)
 
-webPageOf :: String -> String -> String -> Int -> String
+webPageOf :: String -> String -> String -> Int -> Maybe String
 webPageOf gitUrl path hash line = do
-  let (host, gitFile) =
+  (host, gitFile) <-
         case break (== ':') gitUrl of
-          (host', ':' : gitFile') -> (host', gitFile')
-          (_, _) -> error "Bad break"
+          (host', ':' : gitFile') -> Just (host', gitFile')
+          -- If it doesn't contain a colon then it's likely a local filesystem
+          (_, _) -> Nothing
 
-  case host of
+  pure $ case host of
     "git@github.com" -> do
       let basePath = case stripSuffix ".git" gitFile of
             Just s -> s
@@ -157,24 +158,29 @@ test = do
             "remotename    ssh://git@github.com/tomjaguarpaw/effectful.git (fetch)",
             "remotename    ssh://git@github.com/tomjaguarpaw/effectful.git (push)",
             "yetanother  https://github.com/junjihashimoto/sixel.git (fetch)",
-            "yetanother  https://github.com/junjihashimoto/sixel.git (push)"
-
+            "yetanother  https://github.com/junjihashimoto/sixel.git (push)",
+            "fileremote      /net/files/repo/branch/ (fetch)"
           ]
 
   let expected =
         [ "git@github.com:tomjaguarpaw/ad.git",
           "ssh://git@github.com/tomjaguarpaw/effectful.git",
-          "https://github.com/junjihashimoto/sixel.git"
+          "https://github.com/junjihashimoto/sixel.git",
+          "/net/files/repo/branch/"
         ]
 
   let b1 = parseRemotes remoteOutput == expected
 
   let b2 =
         webPageOf "git@github.com:tomjaguarpaw/ad.git" "Term/app/Main.hs" "abc" 12
-          == "https://github.com/tomjaguarpaw/ad/blob/abc/Term/app/Main.hs#L12"
+          == Just "https://github.com/tomjaguarpaw/ad/blob/abc/Term/app/Main.hs#L12"
 
   let b3 =
         webPageOf "git@git.groq.io:code/Groq.git" "Term/app/Main.hs" "abc" 12
-          == "https://git.groq.io/code/Groq/-/blob/abc/Term/app/Main.hs#L12"
+          == Just "https://git.groq.io/code/Groq/-/blob/abc/Term/app/Main.hs#L12"
 
-  b1 && b2 && b3
+  let b4 =
+        webPageOf "/net/files/repo/branch" "Term/app/Main.hs" "abc" 12
+          == Nothing
+
+  b1 && b2 && b3 && b4
